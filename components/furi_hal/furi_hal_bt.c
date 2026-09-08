@@ -244,6 +244,7 @@ void furi_hal_bt_set_key_storage_change_callback(
 #include <furi_hal_random.h>
 
 static GapExtraBeaconState s_beacon_state = GapExtraBeaconStateStopped;
+static bool s_beacon_btshim_was_advertising = false;
 static GapExtraBeaconConfig s_beacon_config;
 static uint8_t s_beacon_data[EXTRA_BEACON_MAX_DATA_SIZE];
 static uint8_t s_beacon_data_len;
@@ -342,6 +343,15 @@ bool gap_extra_beacon_start(void) {
     if(s_beacon_state == GapExtraBeaconStateStarted) return true;
     if(esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_ENABLED) return false;
 
+    /* T-Embed-Custom BLE-Spam-Fix v2: Den Advertiser-Slot uebernehmen. ESP-IDF
+       verbietet es, Adv-Daten zu setzen waehrend btshim (HID/Serial-Profil)
+       advertised - darum erst dessen Advertising stoppen (Stack bleibt an). */
+    s_beacon_btshim_was_advertising =
+        ble_hid_is_advertising() || ble_serial_is_advertising();
+    if(s_beacon_btshim_was_advertising) {
+        furi_hal_bt_stop_advertising();
+    }
+
     esp_ble_gap_register_callback(beacon_gap_cb);
 
     /* T-Embed-Custom BLE-Spam-Fix: volle Sendeleistung wie die Stock-Spam-App */
@@ -372,6 +382,12 @@ bool gap_extra_beacon_stop(void) {
 
     for(int i = 0; i < 50 && s_beacon_state != GapExtraBeaconStateStopped; i++) {
         furi_delay_ms(10);
+    }
+    /* T-Embed-Custom BLE-Spam-Fix v2: Slot an btshim zurueckgeben, falls es
+       vorher advertised hat (Flipper wieder sichtbar). */
+    if(s_beacon_btshim_was_advertising) {
+        s_beacon_btshim_was_advertising = false;
+        furi_hal_bt_start_advertising();
     }
     return s_beacon_state == GapExtraBeaconStateStopped;
 }
