@@ -240,6 +240,7 @@ void furi_hal_bt_set_key_storage_change_callback(
 #include <extra_beacon.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_main.h>
+#include <esp_bt.h>
 #include <furi_hal_random.h>
 
 static GapExtraBeaconState s_beacon_state = GapExtraBeaconStateStopped;
@@ -251,7 +252,8 @@ static volatile bool s_beacon_adv_data_set = false;
 static esp_ble_adv_params_t s_beacon_adv_params = {
     .adv_int_min = 0x00A0, // 100ms default
     .adv_int_max = 0x00A0,
-    .adv_type = ADV_TYPE_NONCONN_IND,
+    /* T-Embed-Custom BLE-Spam-Fix: connectable wie die Stock-Spam-App */
+    .adv_type = ADV_TYPE_IND,
     .own_addr_type = BLE_ADDR_TYPE_RANDOM,
     .channel_map = ADV_CHNL_ALL,
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
@@ -341,6 +343,15 @@ bool gap_extra_beacon_start(void) {
     if(esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_ENABLED) return false;
 
     esp_ble_gap_register_callback(beacon_gap_cb);
+
+    /* T-Embed-Custom BLE-Spam-Fix: volle Sendeleistung wie die Stock-Spam-App */
+#ifdef ESP_PWR_LVL_P21
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P21);
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P21);
+#else
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P20);
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P20);
+#endif
 
     s_beacon_adv_data_set = false;
     esp_err_t err = esp_ble_gap_config_adv_data_raw(s_beacon_data, s_beacon_data_len);
