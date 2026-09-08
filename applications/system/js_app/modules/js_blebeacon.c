@@ -98,7 +98,9 @@ static void js_blebeacon_set_config(struct mjs* mjs) {
         .max_adv_interval_ms = intv_max,
         .adv_channel_map = GapAdvChannelMapAll,
         .adv_power_level = power,
-        .address_type = GapAddressTypePublic,
+        /* T-Embed-Custom BLE-Spam-Fix: Random-Adresse, damit die MAC aus
+           setConfig wirklich benutzt und pro Paket rotiert wird */
+        .address_type = GapAddressTypeRandom,
     };
     memcpy(config.address, (uint8_t*)mac, sizeof(config.address));
 
