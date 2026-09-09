@@ -350,6 +350,17 @@ bool gap_extra_beacon_start(void) {
         ble_hid_is_advertising() || ble_serial_is_advertising();
     if(s_beacon_btshim_was_advertising) {
         furi_hal_bt_stop_advertising();
+        /* T-Embed-Custom BLE-Spam-Fix v3: Warten bis der Slot wirklich frei
+           ist + Random-Adresse ERNEUT setzen. set_rand_addr scheitert naemlich
+           solange noch advertised wird - darum starb bisher der allererste
+           Start ("Failed starting beacon"), spaetere liefen. */
+        furi_delay_ms(300);
+        if(s_beacon_config.address_type == GapAddressTypeRandom) {
+            esp_bd_addr_t addr;
+            memcpy(addr, s_beacon_config.address, 6);
+            addr[0] = (addr[0] & 0x3F) | 0xC0;
+            esp_ble_gap_set_rand_addr(addr);
+        }
     }
 
     esp_ble_gap_register_callback(beacon_gap_cb);
