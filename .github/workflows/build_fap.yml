@@ -1,0 +1,80 @@
+name: Build BLE Spam FAP
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "applications_user/ble_spam_custom/**"
+
+jobs:
+  build-fap:
+    name: Build ble_spam_custom.fap
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Clean stale sdkconfig
+        run: |
+          rm -f sdkconfig
+          rm -f build_t_embed/sdkconfig
+
+      - name: Install ESP-IDF system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git wget flex bison gperf python3 python3-pip python3-venv \
+            cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
+            libusb-1.0-0 libglib2.0-dev
+
+      - name: Cache ESP-IDF
+        uses: actions/cache@v6
+        id: idf-cache
+        with:
+          path: ~/esp/esp-idf
+          key: esp-idf-v5.4.1
+          restore-keys: esp-idf-v5.4.1
+
+      - name: Clone ESP-IDF v5.4.1
+        if: steps.idf-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/esp
+          git clone --branch v5.4.1 --depth 1 \
+            https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+
+      - name: Cache ESP-IDF tools
+        uses: actions/cache@v6
+        id: idf-tools-cache
+        with:
+          path: ~/.espressif
+          key: esp-idf-tools-v5.4.1
+
+      - name: Install ESP-IDF tools
+        if: steps.idf-tools-cache.outputs.cache-hit != 'true'
+        run: |
+          ~/esp/esp-idf/install.sh all
+
+      - name: Verify ESP-IDF environment
+        run: |
+          source ~/esp/esp-idf/export.sh
+          idf.py --version
+
+      - name: Build firmware (needed for FAP headers/config)
+        run: |
+          source ~/esp/esp-idf/export.sh
+          bash ./build.sh --board t_embed --build-only
+
+      - name: Build FAP
+        run: |
+          source ~/esp/esp-idf/export.sh
+          bash ./buildFap.sh applications_user/ble_spam_custom
+
+      - name: Upload FAP artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ble-spam-custom-fap
+          path: build_t_embed/fap/
+          retention-days: 30
