@@ -15,8 +15,6 @@
 #include <gui/modules/widget.h>
 #include <gui/modules/text_input.h>
 #include <input/input.h>
-#include <FreeRTOS.h>
-#include <task.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -222,6 +220,12 @@ static uint32_t rnd_u32(uint32_t n) {
     uint32_t v = 0;
     furi_hal_random_fill_buf(&v, sizeof(v));
     return n ? (v % n) : 0;
+}
+
+static void sleep_ms(uint32_t ms) {
+    uint32_t t = ms * furi_kernel_get_tick_frequency() / 1000;
+    if(!t) t = 1;
+    furi_delay_tick(t);
 }
 
 static void dev_set(App* app, const char* s) {
@@ -482,9 +486,9 @@ static bool rotate_once(App* app) {
     uint8_t buf[EXTRA_BEACON_MAX_DATA_SIZE];
     size_t len = 0;
     furi_hal_bt_extra_beacon_stop();
-    vTaskDelay(pdMS_TO_TICKS(150));
+    sleep_ms(150);
     beacon_cfg_fresh();
-    vTaskDelay(pdMS_TO_TICKS(150));
+    sleep_ms(150);
     switch(app->attack) {
     case AttackIphonePopup: {
         uint32_t k = rnd_u32(APPLE_DEV_COUNT);
@@ -554,7 +558,7 @@ static int32_t spam_thread(void* context) {
         if(done >= burst) done = 0;
         uint32_t waited = 0;
         while(app->running && waited < budget) {
-            vTaskDelay(pdMS_TO_TICKS(50));
+            sleep_ms(50);
             waited += 50;
         }
     }
