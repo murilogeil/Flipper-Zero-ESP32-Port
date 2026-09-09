@@ -215,10 +215,11 @@ static void draw_running(App* app);
 static void spam_start(App* app);
 static void spam_stop(App* app);
 static void show_running(App* app);
+static void widget_button_cb(GuiButtonType btn, InputType type, void* context);
 
 static uint32_t rnd_u32(uint32_t n) {
     uint32_t v = 0;
-    furi_hal_random_fill_buf(&v, sizeof(v));
+    furi_hal_random_fill_buf((uint8_t*)&v, sizeof(v));
     return n ? (v % n) : 0;
 }
 
@@ -416,7 +417,11 @@ static void swift_pick_name(char* out, size_t outsz, bool headphone) {
 
 static size_t build_swift(uint8_t* b, App* app, bool headphone) {
     char name[32];
-    swift_pick_name(name, sizeof(name), headphone);
+    if(headphone) {
+        snprintf(name, sizeof(name), "%s", swift_phones[rnd_u32(SWIFT_PHONE_COUNT)]);
+    } else {
+        swift_pick_name(name, sizeof(name), headphone);
+    }
     size_t maxlen = headphone ? 12 : 21;
     size_t nl = strlen(name);
     if(nl > maxlen) {
