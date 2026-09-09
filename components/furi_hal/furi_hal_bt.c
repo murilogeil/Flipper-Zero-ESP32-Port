@@ -240,7 +240,6 @@ void furi_hal_bt_set_key_storage_change_callback(
 #include <extra_beacon.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_main.h>
-#include <esp_bt.h>
 #include <furi_hal_random.h>
 
 static GapExtraBeaconState s_beacon_state = GapExtraBeaconStateStopped;
@@ -365,15 +364,6 @@ bool gap_extra_beacon_start(void) {
 
     esp_ble_gap_register_callback(beacon_gap_cb);
 
-    /* T-Embed-Custom BLE-Spam-Fix: volle Sendeleistung wie die Stock-Spam-App */
-#ifdef ESP_PWR_LVL_P21
-    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P21);
-    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P21);
-#else
-    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P20);
-    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P20);
-#endif
-
     s_beacon_adv_data_set = false;
     esp_err_t err = esp_ble_gap_config_adv_data_raw(s_beacon_data, s_beacon_data_len);
     if(err != ESP_OK) return false;
@@ -388,19 +378,22 @@ bool gap_extra_beacon_start(void) {
 bool gap_extra_beacon_stop(void) {
     if(s_beacon_state != GapExtraBeaconStateStarted) return true;
 
-    esp_err_t err = esp_ble_gap_stop_advertising();
-    if(err != ESP_OK) return false;
-
-    for(int i = 0; i < 50 && s_beacon_state != GapExtraBeaconStateStopped; i++) {
-        furi_delay_ms(10);
+    /* T-Embed-Custom BLE-Spam-Fix v4: Best effort - ein Stopp darf niemals
+       fehlschlagen (z.B. Controller steht schon, oder das Fertig-Event ging
+       in fremde Haende). Sonst stirbt das Skript beim Ausschalten. */
+    if(esp_ble_gap_stop_advertising() == ESP_OK) {
+        for(int i = 0; i < 50 && s_beacon_state != GapExtraBeaconStateStopped; i++) {
+            furi_delay_ms(10);
+        }
     }
+    s_beacon_state = GapExtraBeaconStateStopped;
     /* T-Embed-Custom BLE-Spam-Fix v2: Slot an btshim zurueckgeben, falls es
        vorher advertised hat (Flipper wieder sichtbar). */
     if(s_beacon_btshim_was_advertising) {
         s_beacon_btshim_was_advertising = false;
         furi_hal_bt_start_advertising();
     }
-    return s_beacon_state == GapExtraBeaconStateStopped;
+    return true;
 }
 
 bool furi_hal_bt_extra_beacon_is_active(void) {
